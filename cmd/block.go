@@ -16,6 +16,11 @@ type Block struct {
 }
 
 func NewBlock(worldX, worldY, screenX, screenY, w, h float32, textureName string) (*Block, error) {
+	// FIX: Block textures are chosen based on the worldY for now
+	if worldY < float32(HEIGHT) {
+		textureName = "air"
+	}
+
 	texture, _, err := LoadTexture(textureName, &TextureConfig{Path: "textures", Ext: "png"})
 
 	if err != nil {

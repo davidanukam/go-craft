@@ -390,7 +390,7 @@ func (g *Game) Update() error {
 var num int
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	vector.FillRect(screen, 0, 0, float32(WIDTH), float32(HEIGHT), color.NRGBA{173, 216, 230, 255}, true)
+	vector.FillRect(screen, 0, 0, float32(WIDTH), float32(HEIGHT), color.NRGBA{149, 203, 231, 255}, true)
 
 	// keys := make([]int, 0, len(g.Chunks))
 	// for k := range g.Chunks {
@@ -406,6 +406,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Chunk-Level Culling
 		if chunk.Left+float32(chunk.Width) < 0 || chunk.Left > float32(WIDTH) ||
 			chunk.Top+float32(chunk.Height) < 0 || chunk.Top > float32(HEIGHT) {
+			continue
+		}
+
+		// If the entire chunk is all air then DON'T draw
+		allAir := true
+		for i := range chunk.Blocks {
+			if !allAir {
+				break
+			}
+			for j := range chunk.Blocks[i] {
+				block := chunk.Blocks[i][j]
+				if block.Texture.File != "textures/air.png" {
+					allAir = false
+					break
+				}
+			}
+		}
+		if allAir {
 			continue
 		}
 
