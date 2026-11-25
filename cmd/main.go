@@ -22,6 +22,7 @@ type Game struct {
 
 var game *Game
 
+// Crate a new Game object
 func NewGame() {
 	game = &Game{CurrChunkCoord: &ChunkCoord{0, 0}, Chunks: make(map[ChunkCoord]*Chunk, 0), Plr: nil, Camera: nil}
 
@@ -37,15 +38,15 @@ func NewGame() {
 	game.Plr = player
 	game.Camera = &Camera{OffsetX: player.WorldX, OffsetY: player.WorldY, Speed: 5}
 
-	generateChunk(0, 0, "center", "grass")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top-left", "dirt")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top", "stone")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top-right", "dirt")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "left", "grass")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "right", "grass")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom-left", "dirt")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom", "stone")
-	generateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom-right", "dirt")
+	GenerateChunk(0, 0, "center", "grass")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top-left", "dirt")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top", "stone")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top-right", "dirt")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "left", "grass")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "right", "grass")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom-left", "dirt")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom", "stone")
+	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom-right", "dirt")
 
 	CheckSurroundingChunks()
 }
@@ -66,6 +67,7 @@ func main() {
 func UpdateCurrChunkCoord() {
 	for _, chunk := range game.Chunks {
 		if game.Plr.ScreenY >= chunk.Top && game.Plr.ScreenY <= chunk.Bottom && game.Plr.ScreenX >= chunk.Left && game.Plr.ScreenX <= chunk.Right {
+			// Debugging
 			// fmt.Printf("UpdatedCurrChunkCoord - Chunk_WorldX: %d, Chunk_WorldY: %d, Chunk_Top: %f, Chunk_Bottom: %f, Chunk_Left: %f, Chunk_Right: %f\n", chunk.Coord.WorldX, chunk.Coord.WorldY, chunk.Top, chunk.Bottom, chunk.Left, chunk.Right)
 			game.CurrChunkCoord.WorldX = chunk.Coord.WorldX
 			game.CurrChunkCoord.WorldY = chunk.Coord.WorldY
@@ -140,7 +142,7 @@ func CheckSurroundingChunks() {
 	BottomRightChunk = _BottomRightChunk
 }
 
-func generateChunk(ChunkCoordWorldX, ChunkCoordWorldY int, side string, ty string) *Chunk {
+func GenerateChunk(ChunkCoordWorldX, ChunkCoordWorldY int, side string, ty string) *Chunk {
 	var newX int
 	var newY int
 
@@ -190,9 +192,35 @@ func generateChunk(ChunkCoordWorldX, ChunkCoordWorldY int, side string, ty strin
 	return nil // chunk
 }
 
+func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
+	blockScreenX := block.ScreenX
+	blockScreenY := block.ScreenY
+	blockWidth := block.Width
+	blockHeight := block.Height
+
+	blockRight := float64(blockScreenX) + float64(blockWidth)
+	blockBottom := float64(blockScreenY) + float64(blockHeight)
+
+	// Debugging
+	// if block == chunk.Blocks[1][1] {
+	// 	chunk.Blocks[1][1].IsHoveredOn = true
+	// 	fmt.Printf("BWX: %f, BWY: %f, BSX: %f, BSY: %f, BR: %f, BB: %f - MX: %f, MY: %f\n", block.WorldX, block.WorldY, block.ScreenX, block.ScreenY, blockRight, blockBottom, mx, my)
+	// }
+
+	if mx > float64(blockScreenX) && mx < blockRight && my > float64(blockScreenY) && my < blockBottom {
+		return true
+	} else {
+		return false
+	}
+}
+
 // --- Game Functions --- //
 
 func (g *Game) Update() error {
+
+	// - Movement - //
+
+	// Debugging
 	// if ebiten.IsKeyPressed(ebiten.KeyUp) {
 	// 	g.Plr.WorldY -= g.Camera.Speed
 	// }
@@ -208,9 +236,10 @@ func (g *Game) Update() error {
 		g.Plr.VelY = 0
 	}
 
-	fmt.Printf("VelY: %f\n", g.Plr.VelY)
+	// Debugging
+	// fmt.Printf("VelY: %f\n", g.Plr.VelY)
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+	if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyW) {
 		if g.Plr.WorldY+float32(g.Plr.Height) == float32(HEIGHT) {
 			g.Plr.VelY = -15
 		}
@@ -222,14 +251,18 @@ func (g *Game) Update() error {
 		g.Plr.WorldX += g.Camera.Speed
 	}
 
+	// Recenter camera after player movement
 	g.Camera.OffsetX = g.Plr.WorldX
 	g.Camera.OffsetY = g.Plr.WorldY
 
-	g.Plr.Update(g.Camera.OffsetX, g.Camera.OffsetY, float32(WIDTH), float32(HEIGHT))
+	// Update World to Screen positions
+	g.Plr.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY, float32(WIDTH), float32(HEIGHT))
 
 	for _, chunk := range g.Chunks {
-		chunk.Update(g.Camera.OffsetX, g.Camera.OffsetY)
+		chunk.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY)
 	}
+
+	// - Chunk Generation - //
 
 	if g.Plr.ScreenY < g.Chunks[*g.CurrChunkCoord].Top || g.Plr.ScreenY > g.Chunks[*g.CurrChunkCoord].Bottom || g.Plr.ScreenX < g.Chunks[*g.CurrChunkCoord].Left || g.Plr.ScreenX > g.Chunks[*g.CurrChunkCoord].Right {
 		UpdateCurrChunkCoord()
@@ -237,35 +270,74 @@ func (g *Game) Update() error {
 		CheckSurroundingChunks()
 
 		if TopLeftChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top-left", "dirt")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top-left", "dirt")
 		}
 
 		if TopChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top", "stone")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top", "stone")
 		}
 
 		if TopRightChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top-right", "dirt")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top-right", "dirt")
 		}
 
 		if LeftChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "left", "stone")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "left", "stone")
 		}
 
 		if RightChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "right", "stone")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "right", "stone")
 		}
 
 		if BottomLeftChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-left", "dirt")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-left", "dirt")
 		}
 
 		if BottomChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom", "stone")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom", "stone")
 		}
 
 		if BottomRightChunk == nil {
-			generateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-right", "dirt")
+			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-right", "dirt")
+		}
+	}
+
+	// - Block Breaking / Placing - //
+
+	mx, my := ebiten.CursorPositionF()
+
+	// Check for hovering
+	chunk := g.Chunks[*g.CurrChunkCoord]
+	for i := range chunk.Blocks {
+		for j := range chunk.Blocks[i] {
+			block := chunk.Blocks[i][j]
+			if chunk != nil {
+				val := IsMouseInBlockBoundary(block, mx, my)
+				if val {
+					(*block).IsHoveredOn = true
+				} else {
+					(*block).IsHoveredOn = false
+				}
+			}
+		}
+	}
+
+	// Check for clicking
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
+		chunk := g.Chunks[*g.CurrChunkCoord]
+		for i := range chunk.Blocks {
+			for j := range chunk.Blocks[i] {
+				block := chunk.Blocks[i][j]
+				if chunk != nil {
+					val := IsMouseInBlockBoundary(block, mx, my)
+					if val {
+						// (*block).IsHoveredOn = true
+
+						// Debugging
+						fmt.Printf("Clicked Block: %v\n", block)
+					}
+				}
+			}
 		}
 	}
 
@@ -294,23 +366,28 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			continue
 		}
 
-		// Blocl-Level Culling
+		// Block-Level Culling
 		for i := range chunk.Blocks {
 			for j := range chunk.Blocks[i] {
 				block := chunk.Blocks[i][j]
 
 				blockScreenX := block.ScreenX
 				blockScreenY := block.ScreenY
-				blockW := block.W
-				blockH := block.H
+				blockWidth := block.Width
+				blockHeight := block.Height
 				blockTexture := block.Texture
+				blockIsHoveredOn := block.IsHoveredOn
 
-				if blockScreenX+blockW >= 0 && blockScreenX <= float32(WIDTH) && blockScreenY+blockH >= 0 && blockScreenY <= float32(chunk.Height) {
+				if blockScreenX+blockWidth >= 0 && blockScreenX <= float32(WIDTH) && blockScreenY+blockHeight >= 0 && blockScreenY <= float32(chunk.Height) {
 					if blockTexture != nil {
 						block_op := &ebiten.DrawImageOptions{}
 						block_op.GeoM.Translate(float64(blockScreenX), float64(blockScreenY))
 
 						screen.DrawImage(blockTexture, block_op)
+
+						if blockIsHoveredOn {
+							vector.StrokeRect(screen, blockScreenX+4, blockScreenY+4, blockWidth-8, blockHeight-8, 4, color.Black, true)
+						}
 
 						// DUBUGGING
 						// vector.StrokeLine(screen, float32(blockScreenX), 0, float32(blockScreenX), float32(HEIGHT), 5, color.NRGBA{255, 0, 0, 255}, true)

@@ -32,7 +32,7 @@ func CreatePlayer(worldX, worldY float32, w, h int, textureName string) (*Player
 	return &Player{WorldX: worldX, WorldY: worldY, ScreenX: worldX, ScreenY: worldY, Width: w, Height: h, Texture: texture, VelX: 0, VelY: 0, Gravity: 1}, nil
 }
 
-func (p *Player) Update(camX, camY, Width, Height float32) error {
+func (p *Player) UpdateScreenPos(camX, camY, Width, Height float32) error {
 	p.ScreenX = p.WorldX - camX + Width/2
 	p.ScreenY = p.WorldY - camY + Height/2
 

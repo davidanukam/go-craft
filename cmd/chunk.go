@@ -54,14 +54,14 @@ func NewChunk(coord ChunkCoord, camX, camY float32, width, height int, ty string
 
 	for i := range chunk.Blocks {
 		for j := range chunk.Blocks[i] {
-			chunk.Blocks[i][j].Update(camX, camY, chunk.Width, chunk.Height)
+			chunk.Blocks[i][j].UpdateScreenPos(camX, camY, chunk.Width, chunk.Height)
 		}
 	}
 
 	return &chunk, nil
 }
 
-func (c *Chunk) Update(camX, camY float32) {
+func (c *Chunk) UpdateScreenPos(camX, camY float32) {
 	c.Top = float32(c.Coord.WorldY) - camY + float32(c.Height/2)
 	c.Bottom = float32(c.Coord.WorldY) + float32(c.Height) - camY + float32(c.Height/2)
 	c.Left = float32(c.Coord.WorldX) - camX + float32(c.Width/2)
@@ -69,7 +69,7 @@ func (c *Chunk) Update(camX, camY float32) {
 
 	for i := range c.Blocks {
 		for j := range c.Blocks[i] {
-			c.Blocks[i][j].Update(camX, camY, c.Width, c.Height)
+			c.Blocks[i][j].UpdateScreenPos(camX, camY, c.Width, c.Height)
 		}
 	}
 }
