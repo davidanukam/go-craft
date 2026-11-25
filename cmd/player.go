@@ -2,8 +2,6 @@ package main
 
 import (
 	"log"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Player struct {
@@ -13,17 +11,14 @@ type Player struct {
 	ScreenY float32
 	Width   int
 	Height  int
-	Texture *ebiten.Image
+	Texture *Texture
 	VelX    float32
 	VelY    float32
 	Gravity float32
 }
 
 func CreatePlayer(worldX, worldY float32, w, h int, textureName string) (*Player, error) {
-	var texture *ebiten.Image
-	var err error
-
-	texture, _, err = LoadTexture(textureName, &TextureConfig{path: "assets", ext: "png"})
+	texture, _, err := LoadTexture(textureName, &TextureConfig{Path: "assets", Ext: "png"})
 
 	if err != nil {
 		log.Fatal(err)

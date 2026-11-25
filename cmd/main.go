@@ -35,6 +35,8 @@ func NewGame() {
 		log.Fatal(err)
 	}
 
+	LoadAllTextures()
+
 	game.Plr = player
 	game.Camera = &Camera{OffsetX: player.WorldX, OffsetY: player.WorldY, Speed: 5}
 
@@ -55,7 +57,7 @@ func main() {
 	NewGame()
 
 	ebiten.SetWindowSize(WIDTH, HEIGHT)
-	ebiten.SetWindowTitle("Minecraft")
+	ebiten.SetWindowTitle("Go-craft")
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
@@ -323,6 +325,8 @@ func (g *Game) Update() error {
 	}
 
 	// Check for clicking
+
+	// Breaking
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
 		chunk := g.Chunks[*g.CurrChunkCoord]
 		for i := range chunk.Blocks {
@@ -331,10 +335,49 @@ func (g *Game) Update() error {
 				if chunk != nil {
 					val := IsMouseInBlockBoundary(block, mx, my)
 					if val {
-						// (*block).IsHoveredOn = true
 
-						// Debugging
-						fmt.Printf("Clicked Block: %v\n", block)
+						// Check if the texture is NOT air
+						if block.Texture.File != "textures/air.png" {
+							airTexture, _, err := LoadTexture("air", &TextureConfig{Path: "textures", Ext: "png"})
+
+							if err != nil {
+								log.Fatal(err)
+							}
+
+							block.Texture = airTexture
+
+							// Debugging
+							fmt.Printf("Clicked Block: %v\n", block)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Placing
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButton2) {
+		chunk := g.Chunks[*g.CurrChunkCoord]
+		for i := range chunk.Blocks {
+			for j := range chunk.Blocks[i] {
+				block := chunk.Blocks[i][j]
+				if chunk != nil {
+					val := IsMouseInBlockBoundary(block, mx, my)
+					if val {
+
+						// Check if the texture IS air
+						if block.Texture.File == "textures/air.png" {
+							newTexture, _, err := LoadTexture("stone", &TextureConfig{Path: "textures", Ext: "png"})
+
+							if err != nil {
+								log.Fatal(err)
+							}
+
+							block.Texture = newTexture
+
+							// Debugging
+							fmt.Printf("Clicked Block: %v\n", block)
+						}
 					}
 				}
 			}
@@ -383,7 +426,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 						block_op := &ebiten.DrawImageOptions{}
 						block_op.GeoM.Translate(float64(blockScreenX), float64(blockScreenY))
 
-						screen.DrawImage(blockTexture, block_op)
+						screen.DrawImage(blockTexture.Image, block_op)
 
 						if blockIsHoveredOn {
 							vector.StrokeRect(screen, blockScreenX+4, blockScreenY+4, blockWidth-8, blockHeight-8, 4, color.Black, true)
@@ -408,7 +451,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	plr_op.GeoM.Translate(float64(g.Plr.ScreenX), float64(g.Plr.ScreenY))
 
 	if g.Plr.Texture != nil {
-		screen.DrawImage(g.Plr.Texture, plr_op)
+		screen.DrawImage(g.Plr.Texture.Image, plr_op)
 	}
 
 	o := fmt.Sprintf("NumOfBlockRendering: %d, PlrWX: %f, PlrWY: %f\nCameraOX: %f, CameraOY: %f, Chunks: %d, CurrChunkCoordWorldX: %d, CurrChunkCoordWorldY: %d", num, g.Plr.WorldX, g.Plr.WorldY, g.Camera.OffsetX, g.Camera.OffsetY, len(g.Chunks), (*g).CurrChunkCoord.WorldX, (*g).CurrChunkCoord.WorldY)

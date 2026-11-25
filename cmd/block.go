@@ -2,8 +2,6 @@ package main
 
 import (
 	"log"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Block struct {
@@ -13,19 +11,20 @@ type Block struct {
 	ScreenY     float32
 	Width       float32
 	Height      float32
-	Texture     *ebiten.Image
+	Texture     *Texture
 	IsHoveredOn bool
 }
 
 func NewBlock(worldX, worldY, screenX, screenY, w, h float32, textureName string) (*Block, error) {
-	var texture *ebiten.Image
-	var err error
-
-	texture, _, err = LoadTexture(textureName, &TextureConfig{path: "textures", ext: "png"})
+	texture, _, err := LoadTexture(textureName, &TextureConfig{Path: "textures", Ext: "png"})
 
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// DEBUGGING
+	// var texture *ebiten.Image
+	// texture = Textures[textureName]
 
 	return &Block{WorldX: worldX, WorldY: worldY, ScreenX: screenX, ScreenY: screenY, Width: w, Height: h, Texture: texture, IsHoveredOn: false}, nil
 }
