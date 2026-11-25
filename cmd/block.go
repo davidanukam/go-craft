@@ -16,9 +16,16 @@ type Block struct {
 }
 
 func NewBlock(worldX, worldY, screenX, screenY, width, height float32, textureName string) (*Block, error) {
-	// FIX: Block textures are chosen based on the worldY for now
-	if worldY < float32(736)/2 {
+	// TEMP: Block textures are chosen based on the worldY for now
+	floorHeight := float32(736)/2 + 16
+	if worldY < floorHeight {
 		textureName = "air"
+	} else if worldY < floorHeight+32 {
+		textureName = "grass"
+	} else if worldY < floorHeight+256 {
+		textureName = "dirt"
+	} else {
+		textureName = "stone"
 	}
 
 	texture, _, err := LoadTexture(textureName, &TextureConfig{Path: "textures", Ext: "png"})

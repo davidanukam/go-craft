@@ -304,6 +304,20 @@ func (g *Game) Update() error {
 		if BottomRightChunk == nil {
 			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-right", "dirt")
 		}
+
+		// FIX Later: Clean up the hovering outline left over from moving into a new chunk
+		for k := range g.Chunks {
+			chunk := g.Chunks[k]
+			for i := range chunk.Blocks {
+				for j := range chunk.Blocks[i] {
+					block := chunk.Blocks[i][j]
+					blockIsHoveredOn := block.IsHoveredOn
+					if blockIsHoveredOn {
+						(*block).IsHoveredOn = false
+					}
+				}
+			}
+		}
 	}
 
 	// - Block Breaking / Placing - //
@@ -326,9 +340,7 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// Check for clicking
-
-	// Breaking
+	// Block Breaking
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
 		chunk := g.Chunks[*g.CurrChunkCoord]
 		for i := range chunk.Blocks {
@@ -337,19 +349,36 @@ func (g *Game) Update() error {
 				if chunk != nil {
 					val := IsMouseInBlockBoundary(block, mx, my)
 					if val {
-
 						// Check if the texture is NOT air
 						if block.Texture.File != "textures/air.png" {
-							airTexture, _, err := LoadTexture("air", &TextureConfig{Path: "textures", Ext: "png"})
+							// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
+							offsets := [][]int{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
-							if err != nil {
-								log.Fatal(err)
+							foundNonAirTexture := false
+							for _, offset := range offsets {
+								if i+offset[0] >= 0 && i+offset[0] <= len(chunk.Blocks)-1 && j+offset[1] >= 0 && j+offset[1] <= len(chunk.Blocks[0])-1 {
+									foundBlock := chunk.Blocks[i+offset[0]][j+offset[1]]
+									if foundBlock.Texture.File != "textures/air.png" {
+										foundNonAirTexture = true
+										break
+										// DEBUGGING
+										// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
+									}
+								}
 							}
 
-							block.Texture = airTexture
+							if foundNonAirTexture {
+								airTexture, _, err := LoadTexture("air", &TextureConfig{Path: "textures", Ext: "png"})
 
-							// Debugging
-							// fmt.Printf("Clicked Block: %v\n", block)
+								if err != nil {
+									log.Fatal(err)
+								}
+
+								block.Texture = airTexture
+
+								// Debugging
+								// fmt.Printf("Clicked Block: %v\n", block)
+							}
 						}
 					}
 				}
@@ -357,7 +386,7 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// Placing
+	// Block Placing
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton2) {
 		chunk := g.Chunks[*g.CurrChunkCoord]
 		for i := range chunk.Blocks {
@@ -366,19 +395,36 @@ func (g *Game) Update() error {
 				if chunk != nil {
 					val := IsMouseInBlockBoundary(block, mx, my)
 					if val {
-
 						// Check if the texture IS air
 						if block.Texture.File == "textures/air.png" {
-							newTexture, _, err := LoadTexture("stone", &TextureConfig{Path: "textures", Ext: "png"})
+							// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
+							offsets := [][]int{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
-							if err != nil {
-								log.Fatal(err)
+							foundNonAirTexture := false
+							for _, offset := range offsets {
+								if i+offset[0] >= 0 && i+offset[0] <= len(chunk.Blocks)-1 && j+offset[1] >= 0 && j+offset[1] <= len(chunk.Blocks[0])-1 {
+									foundBlock := chunk.Blocks[i+offset[0]][j+offset[1]]
+									if foundBlock.Texture.File != "textures/air.png" {
+										foundNonAirTexture = true
+										break
+										// DEBUGGING
+										// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
+									}
+								}
 							}
 
-							block.Texture = newTexture
+							if foundNonAirTexture {
+								newTexture, _, err := LoadTexture("cobblestone", &TextureConfig{Path: "textures", Ext: "png"})
 
-							// Debugging
-							// fmt.Printf("Clicked Block: %v\n", block)
+								if err != nil {
+									log.Fatal(err)
+								}
+
+								block.Texture = newTexture
+
+								// Debugging
+								// fmt.Printf("Clicked Block: %v\n", block)
+							}
 						}
 					}
 				}
@@ -411,23 +457,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			continue
 		}
 
-		// If the entire chunk is all air then DON'T draw
-		allAir := true
-		for i := range chunk.Blocks {
-			if !allAir {
-				break
-			}
-			for j := range chunk.Blocks[i] {
-				block := chunk.Blocks[i][j]
-				if block.Texture.File != "textures/air.png" {
-					allAir = false
-					break
-				}
-			}
-		}
-		if allAir {
-			continue
-		}
+		// DEBUGGING: If the entire chunk is all air then DON'T draw
+		// allAir := true
+		// for i := range chunk.Blocks {
+		// 	if !allAir {
+		// 		break
+		// 	}
+		// 	for j := range chunk.Blocks[i] {
+		// 		block := chunk.Blocks[i][j]
+		// 		if block.Texture.File != "textures/air.png" {
+		// 			allAir = false
+		// 			break
+		// 		}
+		// 	}
+		// }
+		// if allAir {
+		// 	continue
+		// }
 
 		// Block-Level Culling
 		for i := range chunk.Blocks {
@@ -442,20 +488,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				blockIsHoveredOn := block.IsHoveredOn
 
 				if blockScreenX+blockWidth >= 0 && blockScreenX <= float32(WIDTH) && blockScreenY+blockHeight >= 0 && blockScreenY <= float32(chunk.Height) {
-					if blockTexture != nil {
+					if blockTexture != nil && blockTexture.File != "textures/air.png" {
 						block_op := &ebiten.DrawImageOptions{}
 						block_op.GeoM.Translate(float64(blockScreenX), float64(blockScreenY))
 
 						screen.DrawImage(blockTexture.Image, block_op)
 
-						if blockIsHoveredOn {
-							vector.StrokeRect(screen, blockScreenX+4, blockScreenY+4, blockWidth-8, blockHeight-8, 4, color.Black, true)
-						}
-
 						// DUBUGGING
 						// vector.StrokeLine(screen, float32(blockScreenX), 0, float32(blockScreenX), float32(HEIGHT), 5, color.NRGBA{255, 0, 0, 255}, true)
 						// vector.StrokeLine(screen, 0, float32(blockScreenY), float32(WIDTH), float32(blockScreenY), 5, color.NRGBA{0, 0, 255, 255}, true)
 						num += 1
+					}
+					if blockIsHoveredOn {
+						vector.StrokeRect(screen, blockScreenX+4, blockScreenY+4, blockWidth-8, blockHeight-8, 4, color.Black, true)
 					}
 				}
 			}
@@ -474,7 +519,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.DrawImage(g.Plr.Texture.Image, plr_op)
 	}
 
-	o := fmt.Sprintf("NumOfBlockRendering: %d, PlrWX: %f, PlrWY: %f\nCameraOX: %f, CameraOY: %f, Chunks: %d, CurrChunkCoordWorldX: %d, CurrChunkCoordWorldY: %d", num, g.Plr.WorldX, g.Plr.WorldY, g.Camera.OffsetX, g.Camera.OffsetY, len(g.Chunks), (*g).CurrChunkCoord.WorldX, (*g).CurrChunkCoord.WorldY)
+	o := fmt.Sprintf("NumOfBlockRendering: %d, PlrWX: %f, PlrWY: %f\nCameraOX: %f, CameraOY: %f, Chunks: %d\nCurrChunkCoordWorldX: %d, CurrChunkCoordWorldY: %d", num, g.Plr.WorldX, g.Plr.WorldY, g.Camera.OffsetX, g.Camera.OffsetY, len(g.Chunks), (*g).CurrChunkCoord.WorldX, (*g).CurrChunkCoord.WorldY)
 	ebitenutil.DebugPrint(screen, o)
 }
 
