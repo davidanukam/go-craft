@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -218,26 +219,33 @@ func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 
 // --- Game Functions --- //
 
+var flying bool = false
+
 func (g *Game) Update() error {
 
 	// - Movement - //
 
-	// Debugging
-	// if ebiten.IsKeyPressed(ebiten.KeyUp) {
-	// 	g.Plr.WorldY -= g.Camera.Speed
-	// }
-	// if ebiten.IsKeyPressed(ebiten.KeyDown) {
-	// 	g.Plr.WorldY += g.Camera.Speed
-	// }
+	if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+		flying = !flying
+	}
 
-	g.Plr.VelY += g.Plr.Gravity
-	g.Plr.WorldY += g.Plr.VelY
+	// Debugging
+	if ebiten.IsKeyPressed(ebiten.KeyUp) {
+		g.Plr.WorldY -= g.Camera.Speed
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyDown) {
+		g.Plr.WorldY += g.Camera.Speed
+	}
 
 	floorHeight := float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
 
-	if g.Plr.WorldY+float32(g.Plr.Height) >= floorHeight {
-		g.Plr.WorldY = floorHeight - float32(g.Plr.Height)
-		g.Plr.VelY = 0
+	if !flying {
+		g.Plr.VelY += g.Plr.Gravity
+		g.Plr.WorldY += g.Plr.VelY
+		if g.Plr.WorldY+float32(g.Plr.Height) >= floorHeight {
+			g.Plr.WorldY = floorHeight - float32(g.Plr.Height)
+			g.Plr.VelY = 0
+		}
 	}
 
 	// Debugging
@@ -306,14 +314,16 @@ func (g *Game) Update() error {
 		}
 
 		// FIX Later: Clean up the hovering outline left over from moving into a new chunk
-		for k := range g.Chunks {
-			chunk := g.Chunks[k]
-			for i := range chunk.Blocks {
-				for j := range chunk.Blocks[i] {
-					block := chunk.Blocks[i][j]
-					blockIsHoveredOn := block.IsHoveredOn
-					if blockIsHoveredOn {
-						(*block).IsHoveredOn = false
+		chunkOffsets := [][]int{{-HEIGHT, 0}, {0, -WIDTH}, {0, WIDTH}, {HEIGHT, 0}}
+		for _, chunkOffset := range chunkOffsets {
+			if chunk, exists := g.Chunks[ChunkCoord{WorldX: g.CurrChunkCoord.WorldX + chunkOffset[0], WorldY: g.CurrChunkCoord.WorldY + chunkOffset[1]}]; exists {
+				for i := range chunk.Blocks {
+					for j := range chunk.Blocks[i] {
+						block := chunk.Blocks[i][j]
+						blockIsHoveredOn := block.IsHoveredOn
+						if blockIsHoveredOn {
+							(*block).IsHoveredOn = false
+						}
 					}
 				}
 			}
@@ -435,72 +445,53 @@ func (g *Game) Update() error {
 	return nil
 }
 
-var num int
+var numberOfBlocksDrawn int
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	vector.FillRect(screen, 0, 0, float32(WIDTH), float32(HEIGHT), color.NRGBA{149, 203, 231, 255}, true)
 
+	// DEBUGGING
 	// keys := make([]int, 0, len(g.Chunks))
 	// for k := range g.Chunks {
 	// 	keys = append(keys, k)
 	// }
-
 	// sort.Ints(keys)
 
-	num = 0
-	for k := range g.Chunks {
-		chunk := g.Chunks[k]
+	// Only check the current chunk and the 8 arround it when drawing
+	numberOfBlocksDrawn = 0
+	chunkOffsets := [][]int{{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH}, {0, -WIDTH}, {0, WIDTH}, {0, 0}, {HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH}}
+	for _, chunkOffset := range chunkOffsets {
+		if chunk, exists := g.Chunks[ChunkCoord{WorldX: g.CurrChunkCoord.WorldX + chunkOffset[0], WorldY: g.CurrChunkCoord.WorldY + chunkOffset[1]}]; exists {
 
-		// Chunk-Level Culling
-		if chunk.Left+float32(chunk.Width) < 0 || chunk.Left > float32(WIDTH) ||
-			chunk.Top+float32(chunk.Height) < 0 || chunk.Top > float32(HEIGHT) {
-			continue
-		}
+			// Block-Level Culling
+			for i := range chunk.Blocks {
+				for j := range chunk.Blocks[i] {
+					block := chunk.Blocks[i][j]
 
-		// DEBUGGING: If the entire chunk is all air then DON'T draw
-		// allAir := true
-		// for i := range chunk.Blocks {
-		// 	if !allAir {
-		// 		break
-		// 	}
-		// 	for j := range chunk.Blocks[i] {
-		// 		block := chunk.Blocks[i][j]
-		// 		if block.Texture.File != "textures/air.png" {
-		// 			allAir = false
-		// 			break
-		// 		}
-		// 	}
-		// }
-		// if allAir {
-		// 	continue
-		// }
+					blockScreenX := block.ScreenX
+					blockScreenY := block.ScreenY
+					blockWidth := block.Width
+					blockHeight := block.Height
+					blockTexture := block.Texture
+					blockIsHoveredOn := block.IsHoveredOn
 
-		// Block-Level Culling
-		for i := range chunk.Blocks {
-			for j := range chunk.Blocks[i] {
-				block := chunk.Blocks[i][j]
+					if blockScreenX+blockWidth >= 0 && blockScreenX <= float32(WIDTH) && blockScreenY+blockHeight >= 0 && blockScreenY <= float32(chunk.Height) {
+						if blockTexture != nil && blockTexture.File != "textures/air.png" {
+							block_op := &ebiten.DrawImageOptions{}
+							block_op.GeoM.Translate(float64(blockScreenX), float64(blockScreenY))
 
-				blockScreenX := block.ScreenX
-				blockScreenY := block.ScreenY
-				blockWidth := block.Width
-				blockHeight := block.Height
-				blockTexture := block.Texture
-				blockIsHoveredOn := block.IsHoveredOn
+							screen.DrawImage(blockTexture.Image, block_op)
 
-				if blockScreenX+blockWidth >= 0 && blockScreenX <= float32(WIDTH) && blockScreenY+blockHeight >= 0 && blockScreenY <= float32(chunk.Height) {
-					if blockTexture != nil && blockTexture.File != "textures/air.png" {
-						block_op := &ebiten.DrawImageOptions{}
-						block_op.GeoM.Translate(float64(blockScreenX), float64(blockScreenY))
+							numberOfBlocksDrawn += 1
 
-						screen.DrawImage(blockTexture.Image, block_op)
-
-						// DUBUGGING
-						// vector.StrokeLine(screen, float32(blockScreenX), 0, float32(blockScreenX), float32(HEIGHT), 5, color.NRGBA{255, 0, 0, 255}, true)
-						// vector.StrokeLine(screen, 0, float32(blockScreenY), float32(WIDTH), float32(blockScreenY), 5, color.NRGBA{0, 0, 255, 255}, true)
-						num += 1
-					}
-					if blockIsHoveredOn {
-						vector.StrokeRect(screen, blockScreenX+4, blockScreenY+4, blockWidth-8, blockHeight-8, 4, color.Black, true)
+							// DUBUGGING
+							// vector.StrokeLine(screen, float32(blockScreenX), 0, float32(blockScreenX), float32(HEIGHT), 5, color.NRGBA{255, 0, 0, 255}, true)
+							// vector.StrokeLine(screen, 0, float32(blockScreenY), float32(WIDTH), float32(blockScreenY), 5, color.NRGBA{0, 0, 255, 255}, true)
+						}
+						// Draw hover outline if hovering on block
+						if blockIsHoveredOn {
+							vector.StrokeRect(screen, blockScreenX+4, blockScreenY+4, blockWidth-8, blockHeight-8, 4, color.Black, true)
+						}
 					}
 				}
 			}
@@ -519,7 +510,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.DrawImage(g.Plr.Texture.Image, plr_op)
 	}
 
-	o := fmt.Sprintf("NumOfBlockRendering: %d, PlrWX: %f, PlrWY: %f\nCameraOX: %f, CameraOY: %f, Chunks: %d\nCurrChunkCoordWorldX: %d, CurrChunkCoordWorldY: %d", num, g.Plr.WorldX, g.Plr.WorldY, g.Camera.OffsetX, g.Camera.OffsetY, len(g.Chunks), (*g).CurrChunkCoord.WorldX, (*g).CurrChunkCoord.WorldY)
+	fps := ebiten.ActualFPS()
+	tps := ebiten.ActualTPS()
+	o := fmt.Sprintf("NumOfBlockRendering: %d, PlrWX: %f, PlrWY: %f\nCameraOX: %f, CameraOY: %f, Chunks: %d\nCurrChunkCoordWorldX: %d, CurrChunkCoordWorldY: %d, FPS: %f, TPS: %f\n", numberOfBlocksDrawn, g.Plr.WorldX, g.Plr.WorldY, g.Camera.OffsetX, g.Camera.OffsetY, len(g.Chunks), (*g).CurrChunkCoord.WorldX, (*g).CurrChunkCoord.WorldY, fps, tps)
+
 	ebitenutil.DebugPrint(screen, o)
 }
 
