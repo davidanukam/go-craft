@@ -15,9 +15,9 @@ type Block struct {
 	IsHoveredOn bool
 }
 
-func NewBlock(worldX, worldY, screenX, screenY, w, h float32, textureName string) (*Block, error) {
+func NewBlock(worldX, worldY, screenX, screenY, width, height float32, textureName string) (*Block, error) {
 	// FIX: Block textures are chosen based on the worldY for now
-	if worldY < float32(HEIGHT) {
+	if worldY < float32(736)/2 {
 		textureName = "air"
 	}
 
@@ -31,7 +31,7 @@ func NewBlock(worldX, worldY, screenX, screenY, w, h float32, textureName string
 	// var texture *ebiten.Image
 	// texture = Textures[textureName]
 
-	return &Block{WorldX: worldX, WorldY: worldY, ScreenX: screenX, ScreenY: screenY, Width: w, Height: h, Texture: texture, IsHoveredOn: false}, nil
+	return &Block{WorldX: worldX, WorldY: worldY, ScreenX: screenX, ScreenY: screenY, Width: width, Height: height, Texture: texture, IsHoveredOn: false}, nil
 }
 
 func (b *Block) UpdateScreenPos(camX, camY float32, Width, Height int) {

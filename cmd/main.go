@@ -233,8 +233,10 @@ func (g *Game) Update() error {
 	g.Plr.VelY += g.Plr.Gravity
 	g.Plr.WorldY += g.Plr.VelY
 
-	if g.Plr.WorldY+float32(g.Plr.Height) >= float32(HEIGHT) {
-		g.Plr.WorldY = float32(HEIGHT) - float32(g.Plr.Height)
+	floorHeight := float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
+
+	if g.Plr.WorldY+float32(g.Plr.Height) >= floorHeight {
+		g.Plr.WorldY = floorHeight - float32(g.Plr.Height)
 		g.Plr.VelY = 0
 	}
 
@@ -242,7 +244,7 @@ func (g *Game) Update() error {
 	// fmt.Printf("VelY: %f\n", g.Plr.VelY)
 
 	if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyW) {
-		if g.Plr.WorldY+float32(g.Plr.Height) == float32(HEIGHT) {
+		if int(g.Plr.WorldY+float32(g.Plr.Height)) == int(floorHeight) {
 			g.Plr.VelY = -15
 		}
 	}
@@ -347,7 +349,7 @@ func (g *Game) Update() error {
 							block.Texture = airTexture
 
 							// Debugging
-							fmt.Printf("Clicked Block: %v\n", block)
+							// fmt.Printf("Clicked Block: %v\n", block)
 						}
 					}
 				}
@@ -376,7 +378,7 @@ func (g *Game) Update() error {
 							block.Texture = newTexture
 
 							// Debugging
-							fmt.Printf("Clicked Block: %v\n", block)
+							// fmt.Printf("Clicked Block: %v\n", block)
 						}
 					}
 				}
