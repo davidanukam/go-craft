@@ -362,7 +362,7 @@ func (g *Game) Update() error {
 						// Check if the texture is NOT air
 						if block.Texture.File != "textures/air.png" {
 							// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
-							offsets := [][]int{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
+							offsets := [][]int{{-1, 0}, {0, -1}, {0, 0}, {0, 1}, {1, 0}}
 
 							foundNonAirTexture := false
 							for _, offset := range offsets {
