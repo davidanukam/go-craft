@@ -7,12 +7,12 @@
 ## Fixes
 
 ### Not Started
-- [ ] Fix jump collisions
 
 ### In-Progress
 - [ ] (maybe) Change `WorldX` and `WorldY` of structs to type `int`
 
 ### Done
+- [x] Fix jump collisions
 
 ---
 
@@ -24,7 +24,7 @@
 ### In-Progress
 
 ### Done
-- [x] Add vertical collisions (downwards)
+- [x] Add vertical collisions
 - [x] Add horizontal collisions
 
 ---

@@ -15,10 +15,10 @@ import (
 // --- Game Functions --- //
 
 var flying bool = false
-var floorHeight float32 = float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
-var roofHeight float32 = float32(HEIGHT / 2)
-var leftLimit float32 = float32(math.Inf(-1)) // - inf
-var rightLimit float32 = float32(math.Inf(1)) // + inf
+var floorHeight float32 = float32(math.Inf(1)) // +inf
+var roofHeight float32 = float32(math.Inf(-1)) // -inf
+var leftLimit float32 = float32(math.Inf(-1))  // -inf
+var rightLimit float32 = float32(math.Inf(1))  // +inf
 
 func (g *Game) Update() error {
 
@@ -37,7 +37,14 @@ func (g *Game) Update() error {
 		g.Plr.VelY += g.Plr.Gravity
 		g.Plr.WorldY += g.Plr.VelY
 
-		HandleFloorCollision()
+		if g.Plr.VelY < 0 {
+			if g.Plr.WorldY <= roofHeight {
+				g.Plr.WorldY = roofHeight
+				g.Plr.VelY = 0
+			}
+		}
+
+		HandleVerticalCollisions()
 
 		if g.Plr.WorldY+float32(g.Plr.Height) >= floorHeight {
 			g.Plr.WorldY = floorHeight - float32(g.Plr.Height)
@@ -46,11 +53,13 @@ func (g *Game) Update() error {
 
 		if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyW) {
 			if int(g.Plr.WorldY+float32(g.Plr.Height)) == int(floorHeight) {
-				g.Plr.VelY = -15
+				if g.Plr.WorldY > roofHeight {
+					g.Plr.VelY = -15
+				}
 			}
 		}
 
-		HandleSideCollisions()
+		HandleHorizontalCollisions()
 
 		if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
 			if g.Plr.WorldX > leftLimit {
@@ -65,13 +74,20 @@ func (g *Game) Update() error {
 
 	}
 
+	// Used for Debugging
 	if flying {
-		// Debugging
 		if ebiten.IsKeyPressed(ebiten.KeyUp) || ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeySpace) {
 			g.Plr.WorldY -= g.Camera.Speed
 		}
 		if ebiten.IsKeyPressed(ebiten.KeyDown) || ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyShiftLeft) {
 			g.Plr.WorldY += g.Camera.Speed
+		}
+
+		if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
+			g.Plr.WorldX -= g.Camera.Speed
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
+			g.Plr.WorldX += g.Camera.Speed
 		}
 	}
 
@@ -282,6 +298,7 @@ func (g *Game) Update() error {
 var numberOfBlocksDrawn int
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	// sky
 	vector.FillRect(screen, 0, 0, float32(WIDTH), float32(HEIGHT), color.NRGBA{149, 203, 231, 255}, true)
 
 	// DEBUGGING

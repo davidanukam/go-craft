@@ -167,26 +167,34 @@ func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 	}
 }
 
-func HandleFloorCollision() {
-	var foundClosestDownBlock bool = false
+func HandleVerticalCollisions() {
+	var possibleFloorLimits []float32 = []float32{}
+	var possibleRoofLimits []float32 = []float32{}
 
-	chunkOffsets := [][]int{{0, 0}, {HEIGHT, 0}}
+	chunkOffsets := [][]int{{-HEIGHT, 0}, {0, 0}, {HEIGHT, 0}}
 	for _, chunkOffset := range chunkOffsets {
 		nx := game.CurrChunkCoord.WorldX + chunkOffset[1]
 		ny := game.CurrChunkCoord.WorldY + chunkOffset[0]
 
 		if chunk, exists := game.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
 			for i := range chunk.Blocks {
-				if foundClosestDownBlock {
-					break
-				}
 				for j := range chunk.Blocks[i] {
 					block := chunk.Blocks[i][j]
+
+					// Get floor Height
 					if block.WorldY+block.Height > game.Plr.WorldY+float32(game.Plr.Height) {
 						if math.Abs(float64(game.Plr.WorldX)-float64(block.WorldX)) < float64(BLOCK_SIZE) {
 							if block.Texture.File != "textures/air.png" {
-								floorHeight = block.WorldY
-								foundClosestDownBlock = true
+								possibleFloorLimits = append(possibleFloorLimits, block.WorldY)
+							}
+						}
+					}
+
+					// Get roof Height
+					if block.WorldY+block.Height <= game.Plr.WorldY {
+						if math.Abs(float64(game.Plr.WorldX)-float64(block.WorldX)) < float64(BLOCK_SIZE) {
+							if block.Texture.File != "textures/air.png" {
+								possibleRoofLimits = append(possibleRoofLimits, block.WorldY+block.Height)
 							}
 						}
 					}
@@ -194,9 +202,21 @@ func HandleFloorCollision() {
 			}
 		}
 	}
+
+	if len(possibleFloorLimits) > 0 {
+		floorHeight = slices.Min(possibleFloorLimits)
+	} else {
+		floorHeight = float32(math.Inf(1))
+	}
+
+	if len(possibleRoofLimits) > 0 {
+		roofHeight = slices.Max(possibleRoofLimits)
+	} else {
+		roofHeight = float32(math.Inf(-1))
+	}
 }
 
-func HandleSideCollisions() {
+func HandleHorizontalCollisions() {
 	var possibleLeftLimits []float32 = []float32{}
 	var possibleRightLimits []float32 = []float32{}
 
@@ -211,14 +231,14 @@ func HandleSideCollisions() {
 					block := chunk.Blocks[i][j]
 
 					if math.Abs(float64(block.WorldY)-float64(game.Plr.WorldY)) < float64(BLOCK_SIZE) && block.WorldY <= game.Plr.WorldY {
-						// Get Left Limits
+						// Get left Limits
 						if block.WorldX+block.Width <= game.Plr.WorldX {
 							if block.Texture.File != "textures/air.png" {
 								possibleLeftLimits = append(possibleLeftLimits, block.WorldX+block.Width)
 							}
 						}
 
-						// Get Right Limits
+						// Get right Limits
 						if block.WorldX >= game.Plr.WorldX+float32(game.Plr.Width) {
 							if block.Texture.File != "textures/air.png" {
 								possibleRightLimits = append(possibleRightLimits, block.WorldX)

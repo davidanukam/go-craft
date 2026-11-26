@@ -25,7 +25,7 @@ func NewGame() {
 	// player, err := CreatePlayer(float32(WIDTH)/2, float32(HEIGHT)/2, 32, 32, "player")
 	var chunkCenterX = WIDTH / 2
 	var chunkCenterY = HEIGHT / 2
-	player, err := CreatePlayer(float32(chunkCenterX)-(float32(BLOCK_SIZE)/2), float32(chunkCenterY)-(float32(BLOCK_SIZE)/2), 32, 32, "player")
+	player, err := CreatePlayer(float32(chunkCenterX)-(float32(BLOCK_SIZE)/2), float32(chunkCenterY)-(float32(BLOCK_SIZE)/2), BLOCK_SIZE, BLOCK_SIZE, "player")
 
 	if err != nil {
 		log.Fatal(err)
