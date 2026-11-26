@@ -17,6 +17,8 @@ import (
 var flying bool = false
 var floorHeight float32 = float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
 var roofHeight float32 = float32(HEIGHT / 2)
+var leftLimit float32 = float32(math.Inf(-1)) // - inf
+var rightLimit float32 = float32(math.Inf(1)) // + inf
 
 func (g *Game) Update() error {
 
@@ -28,14 +30,6 @@ func (g *Game) Update() error {
 		roofHeight = float32(HEIGHT / 2)
 	}
 
-	// Debugging
-	if ebiten.IsKeyPressed(ebiten.KeyUp) {
-		g.Plr.WorldY -= g.Camera.Speed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyDown) {
-		g.Plr.WorldY += g.Camera.Speed
-	}
-
 	// DEBUGGING (Using center of screen as floorHeight)
 	// floorHeight := float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
 
@@ -43,52 +37,42 @@ func (g *Game) Update() error {
 		g.Plr.VelY += g.Plr.Gravity
 		g.Plr.WorldY += g.Plr.VelY
 
-		var foundClosestBlockUnderPlayer bool = false
-
-		chunkOffsets := [][]int{{0, 0}, {HEIGHT, 0}}
-		for _, chunkOffset := range chunkOffsets {
-			nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
-			ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
-
-			if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
-				for i := range chunk.Blocks {
-					if foundClosestBlockUnderPlayer {
-						break
-					}
-					for j := range chunk.Blocks[i] {
-						block := chunk.Blocks[i][j]
-						if block.WorldY+block.Height > g.Plr.WorldY+float32(g.Plr.Height) {
-							if math.Abs(float64(g.Plr.WorldX)-float64(block.WorldX)) < float64(BLOCK_SIZE) {
-								if block.Texture.File != "textures/air.png" {
-									floorHeight = block.WorldY
-									foundClosestBlockUnderPlayer = true
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+		HandleFloorCollision()
 
 		if g.Plr.WorldY+float32(g.Plr.Height) >= floorHeight {
 			g.Plr.WorldY = floorHeight - float32(g.Plr.Height)
 			g.Plr.VelY = 0
 		}
-	}
 
-	// Debugging
-	// fmt.Printf("VelY: %f\n", g.Plr.VelY)
-
-	if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyW) {
-		if int(g.Plr.WorldY+float32(g.Plr.Height)) == int(floorHeight) {
-			g.Plr.VelY = -15
+		if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyW) {
+			if int(g.Plr.WorldY+float32(g.Plr.Height)) == int(floorHeight) {
+				g.Plr.VelY = -15
+			}
 		}
+
+		HandleSideCollisions()
+
+		if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
+			if g.Plr.WorldX > leftLimit {
+				g.Plr.WorldX -= g.Camera.Speed
+			}
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
+			if g.Plr.WorldX+float32(g.Plr.Width) < rightLimit {
+				g.Plr.WorldX += g.Camera.Speed
+			}
+		}
+
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
-		g.Plr.WorldX -= g.Camera.Speed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
-		g.Plr.WorldX += g.Camera.Speed
+
+	if flying {
+		// Debugging
+		if ebiten.IsKeyPressed(ebiten.KeyUp) || ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeySpace) {
+			g.Plr.WorldY -= g.Camera.Speed
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyDown) || ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyShiftLeft) {
+			g.Plr.WorldY += g.Camera.Speed
+		}
 	}
 
 	// Recenter camera after player movement
@@ -302,6 +286,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// DEBUGGING
 	// vector.StrokeLine(screen, 0, roofHeight, float32(WIDTH), roofHeight, 5, color.White, true)
+
+	// vector.StrokeLine(screen, leftLimit, 0, leftLimit, float32(HEIGHT), 5, color.NRGBA{255, 0, 0, 255}, true)
+
+	// vector.StrokeLine(screen, rightLimit, 0, rightLimit, float32(HEIGHT), 5, color.NRGBA{0, 0, 255, 255}, true)
 
 	// keys := make([]int, 0, len(g.Chunks))
 	// for k := range g.Chunks {

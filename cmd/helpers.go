@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
 )
 
 // --- Helper Functions --- //
@@ -163,5 +164,81 @@ func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 		}
 	} else {
 		return false
+	}
+}
+
+func HandleFloorCollision() {
+	var foundClosestDownBlock bool = false
+
+	chunkOffsets := [][]int{{0, 0}, {HEIGHT, 0}}
+	for _, chunkOffset := range chunkOffsets {
+		nx := game.CurrChunkCoord.WorldX + chunkOffset[1]
+		ny := game.CurrChunkCoord.WorldY + chunkOffset[0]
+
+		if chunk, exists := game.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
+			for i := range chunk.Blocks {
+				if foundClosestDownBlock {
+					break
+				}
+				for j := range chunk.Blocks[i] {
+					block := chunk.Blocks[i][j]
+					if block.WorldY+block.Height > game.Plr.WorldY+float32(game.Plr.Height) {
+						if math.Abs(float64(game.Plr.WorldX)-float64(block.WorldX)) < float64(BLOCK_SIZE) {
+							if block.Texture.File != "textures/air.png" {
+								floorHeight = block.WorldY
+								foundClosestDownBlock = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func HandleSideCollisions() {
+	var possibleLeftLimits []float32 = []float32{}
+	var possibleRightLimits []float32 = []float32{}
+
+	chunkOffsets := [][]int{{0, -WIDTH}, {0, 0}, {0, WIDTH}}
+	for _, chunkOffset := range chunkOffsets {
+		nx := game.CurrChunkCoord.WorldX + chunkOffset[1]
+		ny := game.CurrChunkCoord.WorldY + chunkOffset[0]
+
+		if chunk, exists := game.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
+			for i := range chunk.Blocks {
+				for j := range chunk.Blocks[i] {
+					block := chunk.Blocks[i][j]
+
+					if math.Abs(float64(block.WorldY)-float64(game.Plr.WorldY)) < float64(BLOCK_SIZE) && block.WorldY <= game.Plr.WorldY {
+						// Get Left Limits
+						if block.WorldX+block.Width <= game.Plr.WorldX {
+							if block.Texture.File != "textures/air.png" {
+								possibleLeftLimits = append(possibleLeftLimits, block.WorldX+block.Width)
+							}
+						}
+
+						// Get Right Limits
+						if block.WorldX >= game.Plr.WorldX+float32(game.Plr.Width) {
+							if block.Texture.File != "textures/air.png" {
+								possibleRightLimits = append(possibleRightLimits, block.WorldX)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(possibleLeftLimits) > 0 {
+		leftLimit = slices.Max(possibleLeftLimits)
+	} else {
+		leftLimit = float32(math.Inf(-1))
+	}
+
+	if len(possibleRightLimits) > 0 {
+		rightLimit = slices.Min(possibleRightLimits)
+	} else {
+		rightLimit = float32(math.Inf(1))
 	}
 }

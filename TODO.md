@@ -22,10 +22,10 @@
 - [ ] Add surrounding chunk checking for hover outline, block breaking, and block placing
 
 ### In-Progress
-- [ ] Add horizontal collisions
 
 ### Done
 - [x] Add vertical collisions (downwards)
+- [x] Add horizontal collisions
 
 ---
 
@@ -35,6 +35,5 @@
 - [ ] UpdateScreenPos for the current chunk and its surrounding chunks instead of all chunks
 
 ### In-Progress
-
 
 ### Done
