@@ -7,8 +7,10 @@
 ## Fixes
 
 ### Not Started
+- [ ] Clean up the hovering outline left over from moving into a new chunk
 
 ### In-Progress
+- [ ] Hovering, Block breaking & placing should work for a certain distance
 - [ ] (maybe) Change `WorldX` and `WorldY` of structs to type `int`
 
 ### Done
@@ -19,7 +21,7 @@
 ## Features
 
 ### Not Started
-- [ ] Add surrounding chunk checking for hover outline, block breaking, and block placing
+- [ ] `Queue generation`: Push missing neighbor requests onto a small queue and generate 1–2 chunks per tick (or spread work across frames) so movement stays smooth.
 
 ### In-Progress
 
@@ -32,8 +34,8 @@
 ## Optimizations
 
 ### Not Started
-- [ ] UpdateScreenPos for the current chunk and its surrounding chunks instead of all chunks
 
 ### In-Progress
 
 ### Done
+- [x] UpdateScreenPos for the current chunk and its surrounding chunks instead of all chunks

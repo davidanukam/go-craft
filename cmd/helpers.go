@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math"
 	"slices"
@@ -10,85 +9,67 @@ import (
 // --- Helper Functions --- //
 
 // Update game.CurrChunkCoord (pointer) to store the current chunk the player is in
-func UpdateCurrChunkCoord() {
-	chunkOffsets := [][]int{{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH}, {0, -WIDTH}, {0, WIDTH}, {0, 0}, {HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH}}
-	for _, chunkOffset := range chunkOffsets {
-		if chunk, exists := game.Chunks[ChunkCoord{WorldX: game.CurrChunkCoord.WorldX + chunkOffset[0], WorldY: game.CurrChunkCoord.WorldY + chunkOffset[1]}]; exists {
-			if game.Plr.ScreenY >= chunk.Top && game.Plr.ScreenY <= chunk.Bottom && game.Plr.ScreenX >= chunk.Left && game.Plr.ScreenX <= chunk.Right {
-				// Debugging
-				// fmt.Printf("UpdatedCurrChunkCoord - Chunk_WorldX: %d, Chunk_WorldY: %d, Chunk_Top: %f, Chunk_Bottom: %f, Chunk_Left: %f, Chunk_Right: %f\n", chunk.Coord.WorldX, chunk.Coord.WorldY, chunk.Top, chunk.Bottom, chunk.Left, chunk.Right)
-				game.CurrChunkCoord.WorldX = chunk.Coord.WorldX
-				game.CurrChunkCoord.WorldY = chunk.Coord.WorldY
-				break
-			}
+func UpdateCurrChunkCoord() bool {
+	if game == nil || game.CurrChunkCoord == nil || game.Plr == nil {
+		return false
+	}
+
+	baseX := game.CurrChunkCoord.WorldX
+	baseY := game.CurrChunkCoord.WorldY
+	px := game.Plr.ScreenX
+	py := game.Plr.ScreenY
+
+	for _, offset := range chunkOffsets {
+		coord := ChunkCoord{
+			WorldX: baseX + offset[1],
+			WorldY: baseY + offset[0],
+		}
+		chunk, exists := game.Chunks[coord]
+		if !exists || chunk == nil {
+			continue
+		}
+
+		if py >= chunk.Top && py <= chunk.Bottom && px >= chunk.Left && px <= chunk.Right {
+			changed := chunk.Coord.WorldX != baseX || chunk.Coord.WorldY != baseY
+			game.CurrChunkCoord.WorldX = chunk.Coord.WorldX
+			game.CurrChunkCoord.WorldY = chunk.Coord.WorldY
+			return changed
 		}
 	}
+
+	return false
 }
 
-var TopLeftChunk, TopChunk, TopRightChunk, LeftChunk, CenterChunk, RightChunk, BottomLeftChunk, BottomChunk, BottomRightChunk *Chunk
+type NeighborGrid struct {
+	TopLeft, Top, TopRight          *Chunk
+	Left, Center, Right             *Chunk
+	BottomLeft, Bottom, BottomRight *Chunk
+}
 
 // Check the 8 surrounding chunks
-func CheckSurroundingChunks() {
-	var _TopLeftChunk, _TopChunk, _TopRightChunk, _LeftChunk, _CenterChunk, _RightChunk, _BottomLeftChunk, _BottomChunk, _BottomRightChunk *Chunk
-
-	curr := game.Chunks[*game.CurrChunkCoord]
-
-	for _, chunk := range game.Chunks {
-		// Top-Left
-		if chunk.Bottom == curr.Top && chunk.Right == curr.Left {
-			_TopLeftChunk = chunk
+func GetSurroundingChunks(base ChunkCoord, stepX, stepY int) NeighborGrid {
+	get := func(dx, dy int) *Chunk {
+		c, ok := game.Chunks[ChunkCoord{
+			WorldX: base.WorldX + dx,
+			WorldY: base.WorldY + dy,
+		}]
+		if !ok {
+			return nil
 		}
-
-		// Top
-		if chunk.Bottom == curr.Top && chunk.Left == curr.Left {
-			_TopChunk = chunk
-		}
-
-		// Top-Right
-		if chunk.Bottom == curr.Top && chunk.Left == curr.Right {
-			_TopRightChunk = chunk
-		}
-
-		// Left
-		if chunk.Top == curr.Top && chunk.Right == curr.Left {
-			_LeftChunk = chunk
-		}
-
-		// Center
-		if chunk.Top == curr.Top && chunk.Left == curr.Left {
-			_CenterChunk = chunk
-		}
-
-		// Right
-		if chunk.Top == curr.Top && chunk.Left == curr.Right {
-			_RightChunk = chunk
-		}
-
-		// Bottom-Left
-		if chunk.Top == curr.Bottom && chunk.Right == curr.Left {
-			_BottomLeftChunk = chunk
-		}
-
-		// Bottom
-		if chunk.Top == curr.Bottom && chunk.Left == curr.Left {
-			_BottomChunk = chunk
-		}
-
-		// Bottom-Right
-		if chunk.Top == curr.Bottom && chunk.Left == curr.Right {
-			_BottomRightChunk = chunk
-		}
+		return c
 	}
 
-	TopLeftChunk = _TopLeftChunk
-	TopChunk = _TopChunk
-	TopRightChunk = _TopRightChunk
-	LeftChunk = _LeftChunk
-	CenterChunk = _CenterChunk
-	RightChunk = _RightChunk
-	BottomLeftChunk = _BottomLeftChunk
-	BottomChunk = _BottomChunk
-	BottomRightChunk = _BottomRightChunk
+	return NeighborGrid{
+		TopLeft:     get(-stepX, -stepY),
+		Top:         get(0, -stepY),
+		TopRight:    get(stepX, -stepY),
+		Left:        get(-stepX, 0),
+		Center:      get(0, 0),
+		Right:       get(stepX, 0),
+		BottomLeft:  get(-stepX, stepY),
+		Bottom:      get(0, stepY),
+		BottomRight: get(stepX, stepY),
+	}
 }
 
 func GenerateChunk(ChunkCoordWorldX, ChunkCoordWorldY int, side string, ty string) *Chunk {
@@ -136,11 +117,67 @@ func GenerateChunk(ChunkCoordWorldX, ChunkCoordWorldY int, side string, ty strin
 
 	game.Chunks[coord] = chunk
 
-	fmt.Printf("New Chunk generated [%s] - CoordWorldX: %d, CoordWorldY: %d, Top: %f, Bottom: %f, Left: %f, Right: %f\n", side, chunk.Coord.WorldX, chunk.Coord.WorldY, chunk.Top, chunk.Bottom, chunk.Left, chunk.Right)
+	// fmt.Printf("New Chunk generated [%s] - CoordWorldX: %d, CoordWorldY: %d, Top: %f, Bottom: %f, Left: %f, Right: %f\n", side, chunk.Coord.WorldX, chunk.Coord.WorldY, chunk.Top, chunk.Bottom, chunk.Left, chunk.Right)
 
 	return nil // chunk
 }
 
+type neighborSpec struct {
+	dir   string
+	mat   string
+	chunk *Chunk
+}
+
+// Generate new chunks when/where needed
+func HandleChunkGeneration() {
+	if game == nil || game.CurrChunkCoord == nil || game.Plr == nil {
+		return
+	}
+
+	currChunk, ok := game.Chunks[*game.CurrChunkCoord]
+	if !ok || currChunk == nil {
+		return
+	}
+
+	outOfBounds := game.Plr.ScreenY < currChunk.Top ||
+		game.Plr.ScreenY > currChunk.Bottom ||
+		game.Plr.ScreenX < currChunk.Left ||
+		game.Plr.ScreenX > currChunk.Right
+
+	if !outOfBounds {
+		return
+	}
+
+	if !UpdateCurrChunkCoord() {
+		return
+	}
+
+	neighbors := GetSurroundingChunks(*game.CurrChunkCoord, WIDTH, HEIGHT)
+
+	specs := [8]neighborSpec{
+		{"top-left", "dirt", neighbors.TopLeft},
+		{"top", "stone", neighbors.Top},
+		{"top-right", "dirt", neighbors.TopRight},
+		{"left", "stone", neighbors.Left},
+		{"right", "stone", neighbors.Right},
+		{"bottom-left", "dirt", neighbors.BottomLeft},
+		{"bottom", "stone", neighbors.Bottom},
+		{"bottom-right", "dirt", neighbors.BottomRight},
+	}
+
+	chunksGen := 0
+	for _, s := range specs {
+		if s.chunk == nil {
+			GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, s.dir, s.mat)
+			chunksGen++
+		}
+	}
+
+	// DEBUGGING
+	// fmt.Printf("Chunks generated: %d\n", chunksGen)
+}
+
+// Check if the mouse (cursor) is within a block
 func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 	blockScreenX := block.ScreenX
 	blockScreenY := block.ScreenY
@@ -167,12 +204,14 @@ func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 	}
 }
 
+var verticalChunkOffsets = [][]int{{-HEIGHT, 0}, {0, 0}, {HEIGHT, 0}}
+
+// Handle floor and roof collisions
 func HandleVerticalCollisions() {
 	var possibleFloorLimits []float32 = []float32{}
 	var possibleRoofLimits []float32 = []float32{}
 
-	chunkOffsets := [][]int{{-HEIGHT, 0}, {0, 0}, {HEIGHT, 0}}
-	for _, chunkOffset := range chunkOffsets {
+	for _, chunkOffset := range verticalChunkOffsets {
 		nx := game.CurrChunkCoord.WorldX + chunkOffset[1]
 		ny := game.CurrChunkCoord.WorldY + chunkOffset[0]
 
@@ -216,12 +255,14 @@ func HandleVerticalCollisions() {
 	}
 }
 
+var horizontalChunkOffsets = [][]int{{0, -WIDTH}, {0, 0}, {0, WIDTH}}
+
+// Handle left and right block collisions
 func HandleHorizontalCollisions() {
 	var possibleLeftLimits []float32 = []float32{}
 	var possibleRightLimits []float32 = []float32{}
 
-	chunkOffsets := [][]int{{0, -WIDTH}, {0, 0}, {0, WIDTH}}
-	for _, chunkOffset := range chunkOffsets {
+	for _, chunkOffset := range horizontalChunkOffsets {
 		nx := game.CurrChunkCoord.WorldX + chunkOffset[1]
 		ny := game.CurrChunkCoord.WorldY + chunkOffset[0]
 

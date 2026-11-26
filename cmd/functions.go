@@ -15,10 +15,20 @@ import (
 // --- Game Functions --- //
 
 var flying bool = false
+
 var floorHeight float32 = float32(math.Inf(1)) // +inf
 var roofHeight float32 = float32(math.Inf(-1)) // -inf
 var leftLimit float32 = float32(math.Inf(-1))  // -inf
 var rightLimit float32 = float32(math.Inf(1))  // +inf
+
+var hoveredBlock *Block = nil
+var hoveredBlockChunk *Chunk = nil
+
+var chunkOffsets = [9][2]int{
+	{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH},
+	{0, -WIDTH}, {0, 0}, {0, WIDTH},
+	{HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH},
+}
 
 func (g *Game) Update() error {
 
@@ -95,99 +105,42 @@ func (g *Game) Update() error {
 	g.Camera.OffsetX = g.Plr.WorldX
 	g.Camera.OffsetY = g.Plr.WorldY
 
-	// Update World to Screen positions
+	// Update Player World to Screen positions
 	g.Plr.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY, float32(WIDTH), float32(HEIGHT))
 
-	// OPTIMIZE LATER!!! Needed for now (see TESTING below)
-	for _, chunk := range g.Chunks {
-		chunk.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY)
+	// Updating Chunk World to Screen positions
+	for _, offset := range chunkOffsets {
+		coord := ChunkCoord{
+			WorldX: g.CurrChunkCoord.WorldX + offset[1],
+			WorldY: g.CurrChunkCoord.WorldY + offset[0],
+		}
+		if chunk, exists := g.Chunks[coord]; exists {
+			chunk.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY)
+		}
 	}
-
-	// TESTING: Only updating screen pos of surrounding chunks (Kinda works - not really)
-	// chunkOffsets := [][]int{{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH}, {0, -WIDTH}, {0, WIDTH}, {0, 0}, {HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH}}
-	// for _, chunkOffset := range chunkOffsets {
-	// 	nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
-	// 	ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
-
-	// 	if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
-	// 		chunk.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY)
-	// 	}
-	// }
 
 	// - Chunk Generation - //
 
-	if g.Plr.ScreenY < g.Chunks[*g.CurrChunkCoord].Top || g.Plr.ScreenY > g.Chunks[*g.CurrChunkCoord].Bottom || g.Plr.ScreenX < g.Chunks[*g.CurrChunkCoord].Left || g.Plr.ScreenX > g.Chunks[*g.CurrChunkCoord].Right {
-		UpdateCurrChunkCoord()
+	HandleChunkGeneration()
 
-		CheckSurroundingChunks()
-
-		if TopLeftChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top-left", "dirt")
-		}
-
-		if TopChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top", "stone")
-		}
-
-		if TopRightChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "top-right", "dirt")
-		}
-
-		if LeftChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "left", "stone")
-		}
-
-		if RightChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "right", "stone")
-		}
-
-		if BottomLeftChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-left", "dirt")
-		}
-
-		if BottomChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom", "stone")
-		}
-
-		if BottomRightChunk == nil {
-			GenerateChunk(g.CurrChunkCoord.WorldX, g.CurrChunkCoord.WorldY, "bottom-right", "dirt")
-		}
-
-		// FIX Later: Clean up the hovering outline left over from moving into a new chunk
-		chunkOffsets := [][]int{{-HEIGHT, 0}, {0, -WIDTH}, {0, WIDTH}, {HEIGHT, 0}}
-		for _, chunkOffset := range chunkOffsets {
-			nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
-			ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
-
-			if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
-				for i := range chunk.Blocks {
-					for j := range chunk.Blocks[i] {
-						block := chunk.Blocks[i][j]
-						blockIsHoveredOn := block.IsHoveredOn
-						if blockIsHoveredOn {
-							(*block).IsHoveredOn = false
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// - Block Breaking / Placing - //
+	// - Block Interaction  - //
 
 	mx, my := ebiten.CursorPositionF()
 
 	// Check for hovering
-	chunk := g.Chunks[*g.CurrChunkCoord]
-	for i := range chunk.Blocks {
-		for j := range chunk.Blocks[i] {
-			block := chunk.Blocks[i][j]
-			if chunk != nil {
-				val := IsMouseInBlockBoundary(block, mx, my)
-				if val {
-					(*block).IsHoveredOn = true
-				} else {
-					(*block).IsHoveredOn = false
+	if chunk, exists := g.Chunks[*g.CurrChunkCoord]; exists {
+		for i := range chunk.Blocks {
+			for j := range chunk.Blocks[i] {
+				block := chunk.Blocks[i][j]
+				if block != nil {
+					val := IsMouseInBlockBoundary(block, mx, my)
+					if val {
+						(*block).IsHoveredOn = true
+						hoveredBlock = block
+						hoveredBlockChunk = chunk
+					} else {
+						(*block).IsHoveredOn = false
+					}
 				}
 			}
 		}
@@ -195,46 +148,41 @@ func (g *Game) Update() error {
 
 	// Block Breaking
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
-		chunk := g.Chunks[*g.CurrChunkCoord]
-		for i := range chunk.Blocks {
-			for j := range chunk.Blocks[i] {
-				block := chunk.Blocks[i][j]
-				if chunk != nil {
-					val := IsMouseInBlockBoundary(block, mx, my)
-					if val {
-						// Check if the texture is NOT air
-						if block.Texture.File != "textures/air.png" {
-							// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
-							offsets := [][]int{{-1, 0}, {0, -1}, {0, 0}, {0, 1}, {1, 0}}
+		if hoveredBlock != nil && hoveredBlockChunk != nil {
+			for i := range hoveredBlockChunk.Blocks {
+				for j := range hoveredBlockChunk.Blocks[i] {
+					// Check if the texture is NOT air
+					if hoveredBlock.Texture.File != "textures/air.png" {
+						// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
+						offsets := [][]int{{-1, 0}, {0, -1}, {0, 0}, {0, 1}, {1, 0}}
 
-							foundNonAirTexture := false
-							for _, offset := range offsets {
-								ni := i + offset[0]
-								nj := j + offset[1]
+						foundNonAirTexture := false
+						for _, offset := range offsets {
+							ni := i + offset[0]
+							nj := j + offset[1]
 
-								if ni >= 0 && ni < len(chunk.Blocks) && nj >= 0 && nj < len(chunk.Blocks[0]) {
-									foundBlock := chunk.Blocks[ni][nj]
-									if foundBlock.Texture.File != "textures/air.png" {
-										foundNonAirTexture = true
-										break
-										// DEBUGGING
-										// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
-									}
+							if ni >= 0 && ni < len(hoveredBlockChunk.Blocks) && nj >= 0 && nj < len(hoveredBlockChunk.Blocks[0]) {
+								foundBlock := hoveredBlockChunk.Blocks[ni][nj]
+								if foundBlock.Texture.File != "textures/air.png" {
+									foundNonAirTexture = true
+									break
+									// DEBUGGING
+									// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
 								}
 							}
+						}
 
-							if foundNonAirTexture {
-								airTexture, _, err := LoadTexture("air", &TextureConfig{Path: "textures", Ext: "png"})
+						if foundNonAirTexture {
+							airTexture, _, err := LoadTexture("air", &TextureConfig{Path: "textures", Ext: "png"})
 
-								if err != nil {
-									log.Fatal(err)
-								}
-
-								block.Texture = airTexture
-
-								// Debugging
-								// fmt.Printf("Clicked Block: %v\n", block)
+							if err != nil {
+								log.Fatal(err)
 							}
+
+							hoveredBlock.Texture = airTexture
+
+							// Debugging
+							// fmt.Printf("Clicked Block: %v\n", hoveredBlock)
 						}
 					}
 				}
@@ -244,47 +192,42 @@ func (g *Game) Update() error {
 
 	// Block Placing
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton2) {
-		chunk := g.Chunks[*g.CurrChunkCoord]
-		for i := range chunk.Blocks {
-			for j := range chunk.Blocks[i] {
-				block := chunk.Blocks[i][j]
-				if chunk != nil {
-					val := IsMouseInBlockBoundary(block, mx, my)
-					if val {
-						// Check if the texture IS air
-						if block.Texture.File == "textures/air.png" {
-							// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
-							offsets := [][]int{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
+		if hoveredBlock != nil && hoveredBlockChunk != nil {
+			for i := range hoveredBlockChunk.Blocks {
+				for j := range hoveredBlockChunk.Blocks[i] {
+					// Check if the texture IS air
+					if hoveredBlock.Texture.File == "textures/air.png" {
+						// Check if AT LEAST ONE of the 4 Blocks around it (Top, Bottom, Left, Right) have a NON-AIR texture
+						offsets := [][]int{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
-							foundNonAirTexture := false
-							for _, offset := range offsets {
-								ni := i + offset[0]
-								nj := j + offset[1]
+						foundNonAirTexture := false
+						for _, offset := range offsets {
+							ni := i + offset[0]
+							nj := j + offset[1]
 
-								if ni >= 0 && ni < len(chunk.Blocks) && nj >= 0 && nj < len(chunk.Blocks[ni]) {
-									foundBlock := chunk.Blocks[ni][nj]
-									if foundBlock.Texture.File != "textures/air.png" {
-										foundNonAirTexture = true
-										break
-										// DEBUGGING
-										// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
-									}
-
-								}
-							}
-
-							if foundNonAirTexture {
-								newTexture, _, err := LoadTexture("cobblestone", &TextureConfig{Path: "textures", Ext: "png"})
-
-								if err != nil {
-									log.Fatal(err)
+							if ni >= 0 && ni < len(hoveredBlockChunk.Blocks) && nj >= 0 && nj < len(hoveredBlockChunk.Blocks[ni]) {
+								foundBlock := hoveredBlockChunk.Blocks[ni][nj]
+								if foundBlock.Texture.File != "textures/air.png" {
+									foundNonAirTexture = true
+									break
+									// DEBUGGING
+									// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
 								}
 
-								block.Texture = newTexture
-
-								// Debugging
-								// fmt.Printf("Clicked Block: %v\n", block)
 							}
+						}
+
+						if foundNonAirTexture {
+							newTexture, _, err := LoadTexture("cobblestone", &TextureConfig{Path: "textures", Ext: "png"})
+
+							if err != nil {
+								log.Fatal(err)
+							}
+
+							hoveredBlock.Texture = newTexture
+
+							// Debugging
+							// fmt.Printf("Clicked Block: %v\n", hoveredBlock)
 						}
 					}
 				}

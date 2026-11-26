@@ -22,7 +22,6 @@ var game *Game
 func NewGame() {
 	game = &Game{CurrChunkCoord: &ChunkCoord{0, 0}, Chunks: make(map[ChunkCoord]*Chunk, 0), Plr: nil, Camera: nil}
 
-	// player, err := CreatePlayer(float32(WIDTH)/2, float32(HEIGHT)/2, 32, 32, "player")
 	var chunkCenterX = WIDTH / 2
 	var chunkCenterY = HEIGHT / 2
 	player, err := CreatePlayer(float32(chunkCenterX)-(float32(BLOCK_SIZE)/2), float32(chunkCenterY)-(float32(BLOCK_SIZE)/2), BLOCK_SIZE, BLOCK_SIZE, "player")
@@ -45,8 +44,6 @@ func NewGame() {
 	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom-left", "dirt")
 	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom", "stone")
 	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "bottom-right", "dirt")
-
-	CheckSurroundingChunks()
 }
 
 func main() {
