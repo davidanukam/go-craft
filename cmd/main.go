@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -39,7 +40,7 @@ func NewGame() {
 	LoadAllTextures()
 
 	game.Plr = player
-	game.Camera = &Camera{OffsetX: player.WorldX, OffsetY: player.WorldY, Speed: 5}
+	game.Camera = &Camera{OffsetX: player.WorldX, OffsetY: player.WorldY, Speed: 4}
 
 	GenerateChunk(0, 0, "center", "grass")
 	GenerateChunk(game.CurrChunkCoord.WorldX, game.CurrChunkCoord.WorldY, "top-left", "dirt")
@@ -68,13 +69,16 @@ func main() {
 
 // Update game.CurrChunkCoord (pointer) to store the current chunk the player is in
 func UpdateCurrChunkCoord() {
-	for _, chunk := range game.Chunks {
-		if game.Plr.ScreenY >= chunk.Top && game.Plr.ScreenY <= chunk.Bottom && game.Plr.ScreenX >= chunk.Left && game.Plr.ScreenX <= chunk.Right {
-			// Debugging
-			// fmt.Printf("UpdatedCurrChunkCoord - Chunk_WorldX: %d, Chunk_WorldY: %d, Chunk_Top: %f, Chunk_Bottom: %f, Chunk_Left: %f, Chunk_Right: %f\n", chunk.Coord.WorldX, chunk.Coord.WorldY, chunk.Top, chunk.Bottom, chunk.Left, chunk.Right)
-			game.CurrChunkCoord.WorldX = chunk.Coord.WorldX
-			game.CurrChunkCoord.WorldY = chunk.Coord.WorldY
-			break
+	chunkOffsets := [][]int{{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH}, {0, -WIDTH}, {0, WIDTH}, {0, 0}, {HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH}}
+	for _, chunkOffset := range chunkOffsets {
+		if chunk, exists := game.Chunks[ChunkCoord{WorldX: game.CurrChunkCoord.WorldX + chunkOffset[0], WorldY: game.CurrChunkCoord.WorldY + chunkOffset[1]}]; exists {
+			if game.Plr.ScreenY >= chunk.Top && game.Plr.ScreenY <= chunk.Bottom && game.Plr.ScreenX >= chunk.Left && game.Plr.ScreenX <= chunk.Right {
+				// Debugging
+				// fmt.Printf("UpdatedCurrChunkCoord - Chunk_WorldX: %d, Chunk_WorldY: %d, Chunk_Top: %f, Chunk_Bottom: %f, Chunk_Left: %f, Chunk_Right: %f\n", chunk.Coord.WorldX, chunk.Coord.WorldY, chunk.Top, chunk.Bottom, chunk.Left, chunk.Right)
+				game.CurrChunkCoord.WorldX = chunk.Coord.WorldX
+				game.CurrChunkCoord.WorldY = chunk.Coord.WorldY
+				break
+			}
 		}
 	}
 }
@@ -211,7 +215,11 @@ func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 	// }
 
 	if mx > float64(blockScreenX) && mx < blockRight && my > float64(blockScreenY) && my < blockBottom {
-		return true
+		if math.Abs(float64(block.WorldX)-float64(game.Plr.WorldX)) >= float64(BLOCK_SIZE) || math.Abs(float64(block.WorldY)-float64(game.Plr.WorldY)) >= float64(BLOCK_SIZE) {
+			return true
+		} else {
+			return false
+		}
 	} else {
 		return false
 	}
@@ -220,6 +228,8 @@ func IsMouseInBlockBoundary(block *Block, mx, my float64) bool {
 // --- Game Functions --- //
 
 var flying bool = false
+var floorHeight float32 = float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
+var roofHeight float32 = float32(HEIGHT / 2)
 
 func (g *Game) Update() error {
 
@@ -227,6 +237,8 @@ func (g *Game) Update() error {
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyF) {
 		flying = !flying
+		floorHeight = float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
+		roofHeight = float32(HEIGHT / 2)
 	}
 
 	// Debugging
@@ -237,11 +249,40 @@ func (g *Game) Update() error {
 		g.Plr.WorldY += g.Camera.Speed
 	}
 
-	floorHeight := float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
+	// DEBUGGING (Using center of screen as floorHeight)
+	// floorHeight := float32(HEIGHT/2) + float32(BLOCK_SIZE/2)
 
 	if !flying {
 		g.Plr.VelY += g.Plr.Gravity
 		g.Plr.WorldY += g.Plr.VelY
+
+		var foundClosestBlockUnderPlayer bool = false
+
+		chunkOffsets := [][]int{{0, 0}, {HEIGHT, 0}}
+		for _, chunkOffset := range chunkOffsets {
+			nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
+			ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
+
+			if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
+				for i := range chunk.Blocks {
+					if foundClosestBlockUnderPlayer {
+						break
+					}
+					for j := range chunk.Blocks[i] {
+						block := chunk.Blocks[i][j]
+						if block.WorldY+block.Height > g.Plr.WorldY+float32(g.Plr.Height) {
+							if math.Abs(float64(g.Plr.WorldX)-float64(block.WorldX)) < float64(BLOCK_SIZE) {
+								if block.Texture.File != "textures/air.png" {
+									floorHeight = block.WorldY
+									foundClosestBlockUnderPlayer = true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		if g.Plr.WorldY+float32(g.Plr.Height) >= floorHeight {
 			g.Plr.WorldY = floorHeight - float32(g.Plr.Height)
 			g.Plr.VelY = 0
@@ -270,9 +311,21 @@ func (g *Game) Update() error {
 	// Update World to Screen positions
 	g.Plr.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY, float32(WIDTH), float32(HEIGHT))
 
+	// OPTIMIZE LATER!!! Needed for now (see TESTING below)
 	for _, chunk := range g.Chunks {
 		chunk.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY)
 	}
+
+	// TESTING: Only updating screen pos of surrounding chunks (Kinda works - not really)
+	// chunkOffsets := [][]int{{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH}, {0, -WIDTH}, {0, WIDTH}, {0, 0}, {HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH}}
+	// for _, chunkOffset := range chunkOffsets {
+	// 	nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
+	// 	ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
+
+	// 	if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
+	// 		chunk.UpdateScreenPos(g.Camera.OffsetX, g.Camera.OffsetY)
+	// 	}
+	// }
 
 	// - Chunk Generation - //
 
@@ -316,7 +369,10 @@ func (g *Game) Update() error {
 		// FIX Later: Clean up the hovering outline left over from moving into a new chunk
 		chunkOffsets := [][]int{{-HEIGHT, 0}, {0, -WIDTH}, {0, WIDTH}, {HEIGHT, 0}}
 		for _, chunkOffset := range chunkOffsets {
-			if chunk, exists := g.Chunks[ChunkCoord{WorldX: g.CurrChunkCoord.WorldX + chunkOffset[0], WorldY: g.CurrChunkCoord.WorldY + chunkOffset[1]}]; exists {
+			nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
+			ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
+
+			if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
 				for i := range chunk.Blocks {
 					for j := range chunk.Blocks[i] {
 						block := chunk.Blocks[i][j]
@@ -366,8 +422,11 @@ func (g *Game) Update() error {
 
 							foundNonAirTexture := false
 							for _, offset := range offsets {
-								if i+offset[0] >= 0 && i+offset[0] <= len(chunk.Blocks)-1 && j+offset[1] >= 0 && j+offset[1] <= len(chunk.Blocks[0])-1 {
-									foundBlock := chunk.Blocks[i+offset[0]][j+offset[1]]
+								ni := i + offset[0]
+								nj := j + offset[1]
+
+								if ni >= 0 && ni < len(chunk.Blocks) && nj >= 0 && nj < len(chunk.Blocks[0]) {
+									foundBlock := chunk.Blocks[ni][nj]
 									if foundBlock.Texture.File != "textures/air.png" {
 										foundNonAirTexture = true
 										break
@@ -412,14 +471,18 @@ func (g *Game) Update() error {
 
 							foundNonAirTexture := false
 							for _, offset := range offsets {
-								if i+offset[0] >= 0 && i+offset[0] <= len(chunk.Blocks)-1 && j+offset[1] >= 0 && j+offset[1] <= len(chunk.Blocks[0])-1 {
-									foundBlock := chunk.Blocks[i+offset[0]][j+offset[1]]
+								ni := i + offset[0]
+								nj := j + offset[1]
+
+								if ni >= 0 && ni < len(chunk.Blocks) && nj >= 0 && nj < len(chunk.Blocks[ni]) {
+									foundBlock := chunk.Blocks[ni][nj]
 									if foundBlock.Texture.File != "textures/air.png" {
 										foundNonAirTexture = true
 										break
 										// DEBUGGING
 										// fmt.Printf("Found Block - %v\n", foundBlock.Texture.File)
 									}
+
 								}
 							}
 
@@ -451,6 +514,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	vector.FillRect(screen, 0, 0, float32(WIDTH), float32(HEIGHT), color.NRGBA{149, 203, 231, 255}, true)
 
 	// DEBUGGING
+	// vector.StrokeLine(screen, 0, roofHeight, float32(WIDTH), roofHeight, 5, color.White, true)
+
 	// keys := make([]int, 0, len(g.Chunks))
 	// for k := range g.Chunks {
 	// 	keys = append(keys, k)
@@ -461,7 +526,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	numberOfBlocksDrawn = 0
 	chunkOffsets := [][]int{{-HEIGHT, -WIDTH}, {-HEIGHT, 0}, {-HEIGHT, WIDTH}, {0, -WIDTH}, {0, WIDTH}, {0, 0}, {HEIGHT, -WIDTH}, {HEIGHT, 0}, {HEIGHT, WIDTH}}
 	for _, chunkOffset := range chunkOffsets {
-		if chunk, exists := g.Chunks[ChunkCoord{WorldX: g.CurrChunkCoord.WorldX + chunkOffset[0], WorldY: g.CurrChunkCoord.WorldY + chunkOffset[1]}]; exists {
+		nx := g.CurrChunkCoord.WorldX + chunkOffset[1]
+		ny := g.CurrChunkCoord.WorldY + chunkOffset[0]
+
+		if chunk, exists := g.Chunks[ChunkCoord{WorldX: nx, WorldY: ny}]; exists {
 
 			// Block-Level Culling
 			for i := range chunk.Blocks {
